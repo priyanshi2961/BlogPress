@@ -1,12 +1,17 @@
 pipeline {
   agent any
-  options { ansiColor("xterm"); timestamps() }
+  options { timestamps() }   // removed ansiColor
   environment { KUBECONFIG = "C:\\\\kube\\\\config" }
+
   stages {
     stage("Checkout") { steps { checkout scm } }
+
     stage("Show committed changes") {
-      steps { powershell 'git --no-pager log -1 --pretty=format:"%h %an %ad %s" --date=iso' }
+      steps {
+        powershell 'git --no-pager log -1 --pretty=format:"%h %an %ad %s" --date=iso'
+      }
     }
+
     stage("Build image inside Minikube") {
       steps {
         powershell '''
@@ -21,6 +26,7 @@ pipeline {
         '''
       }
     }
+
     stage("Deploy to Minikube") {
       steps {
         powershell '''
