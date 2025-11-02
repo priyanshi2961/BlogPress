@@ -1,0 +1,23 @@
+# Reusable Helm Chart for BlogPress Microservices
+#
+# This chart provides a standardized deployment template for all microservices.
+# Each service uses this chart with environment-specific values files.
+#
+# Chart accepts values for:
+# - Image configuration (repository, tag, pull secret)
+# - Service configuration (type, port)
+# - Health probes (readiness, liveness)
+# - Resources (requests, limits)
+# - Autoscaling (enablement, min/max replicas, CPU/memory targets)
+# - PodDisruptionBudget (optional)
+# - Configuration (environment variables, config maps, secrets)
+# - Rollout strategy
+# - Ingress (optional)
+
+apiVersion: v2
+name: microservice
+description: Reusable Helm chart for BlogPress microservices
+type: application
+version: 1.0.0
+appVersion: "1.0"
+

@@ -1,0 +1,42 @@
+# Staging environment values for user-service
+
+image:
+  repository: docker.io/yourorg/user-service  # TODO: Replace with actual registry path
+  tag: "PLACEHOLDER"
+
+service:
+  port: 8081
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+probes:
+  readiness:
+    path: /actuator/health
+    initialDelaySeconds: 30
+  liveness:
+    path: /actuator/health
+    initialDelaySeconds: 60
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+replicaCount: 2
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: user-service.staging.example.com  # TODO: Replace with actual domain
+      paths:
+        - path: /
+          pathType: Prefix
+

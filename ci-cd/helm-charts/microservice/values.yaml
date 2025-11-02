@@ -1,0 +1,117 @@
+# Default values for microservice chart
+# These are overridden by environment-specific values files
+
+# Image Configuration
+image:
+  repository: ""  # TODO: Set per service (e.g., docker.io/yourorg/user-service)
+  tag: "latest"  # Overridden at deploy time
+  pullPolicy: IfNotPresent
+  pullSecret: ""  # Optional: reference to image pull secret
+
+# Service Configuration
+service:
+  type: ClusterIP  # ClusterIP, NodePort, LoadBalancer
+  port: 8080
+  targetPort: 8080
+  annotations: {}
+
+# Health Probes
+probes:
+  readiness:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Resource Requests and Limits
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Autoscaling Configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget (optional)
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1  # Or use maxUnavailable
+
+# Environment Variables
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "default"
+
+# ConfigMap Mounts (optional)
+configMapMounts: []
+  # Example:
+  # - name: app-config
+  #   mountPath: /etc/config
+
+# Secret Mounts (optional)
+secretMounts: []
+  # Example:
+  # - name: app-secrets
+  #   mountPath: /etc/secrets
+
+# Deployment Strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Ingress Configuration (optional)
+ingress:
+  enabled: false
+  className: "nginx"  # TODO: Configure based on ingress controller
+  annotations: {}
+  hosts:
+    - host: ""  # TODO: Set per service (e.g., api-service.example.com)
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: tls-secret
+    #   hosts: []
+
+# Replica Count
+replicaCount: 1
+
+# Pod Labels and Annotations
+podLabels: {}
+podAnnotations: {}
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ""  # Defaults to release name
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+

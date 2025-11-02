@@ -1,0 +1,138 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: blogpress-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+    container_name: blogpress-eureka
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_APPLICATION_NAME=eureka-server
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+    # Healthcheck omitted to keep image slim; rely on startup ordering
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: blogpress-gateway
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_APPLICATION_NAME=api-gateway
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=api-gateway
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+      - SERVER_PORT=8084
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_SECRET_KEY=YmU2NjUyYjMyZmMxZTY5ODRmMjU3MDI4YjZkZGNlYjU0Njk5YmU1OTVmN2NmZWIyYjUwNTE4ZGNmYjYxMTBiNg==
+    depends_on:
+      - eureka-server
+
+  user-service:
+    build:
+      context: ./user-service
+    container_name: blogpress-user
+    environment:
+      - SPRING_APPLICATION_NAME=user-service
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/user_service_db
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=user-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+      - SERVER_PORT=8081
+    depends_on:
+      - mysql
+      - eureka-server
+
+  blog-service:
+    build:
+      context: ./blog-service
+    container_name: blogpress-blog
+    environment:
+      - SPRING_APPLICATION_NAME=blog-service
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/blog_service_db
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=blog-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+      - SERVER_PORT=8082
+    depends_on:
+      - mysql
+      - eureka-server
+
+  engagement-service:
+    build:
+      context: ./engagement-service
+    container_name: blogpress-engagement
+    environment:
+      - SPRING_APPLICATION_NAME=engagement-service
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/engagement_service_db
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=engagement-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+      - SERVER_PORT=8083
+    depends_on:
+      - mysql
+      - eureka-server
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: blogpress-notification
+    env_file:
+      - .env
+    environment:
+      - SPRING_APPLICATION_NAME=notification-service
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=notification-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+      - SERVER_PORT=8085
+      # Real SMTP configuration (Gmail)
+      - SPRING_MAIL_HOST=smtp.gmail.com
+      - SPRING_MAIL_PORT=587
+      - SPRING_MAIL_USERNAME=parthm2310@gmail.com
+      - SPRING_MAIL_PASSWORD=wuznjaekupzaotjw
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+      - NOTIFICATION_EMAIL_SENDER_ADDRESS=parthm2310@gmail.com
+      - NOTIFICATION_EMAIL_SENDER_NAME=BlogPress Team
+    depends_on:
+      - eureka-server
+
+  blog-frontend:
+    build:
+      context: ./blog-frontend
+    container_name: blogpress-frontend
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_BASE=http://localhost:8084/api
+    depends_on:
+      - api-gateway
+
+
+volumes:
+  mysql_data:

@@ -1,0 +1,32 @@
+# Kubernetes Namespaces for CI/CD Environments
+#
+# Defines three namespaces: dev, staging, and prod
+# Each namespace has basic labels for identification and resource management
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    environment: development
+    managed-by: jenkins
+    purpose: ci-cd
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    environment: staging
+    managed-by: jenkins
+    purpose: ci-cd
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    environment: production
+    managed-by: jenkins
+    purpose: ci-cd
+

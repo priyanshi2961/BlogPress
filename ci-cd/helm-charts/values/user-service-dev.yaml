@@ -1,0 +1,36 @@
+# Development environment values for user-service
+# This file is used when deploying to dev namespace
+
+image:
+  repository: docker.io/yourorg/user-service  # TODO: Replace with actual registry path
+  tag: "PLACEHOLDER"  # Replaced by pipeline with resolved tag
+
+service:
+  port: 8081
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+probes:
+  readiness:
+    path: /actuator/health
+    initialDelaySeconds: 30
+  liveness:
+    path: /actuator/health
+    initialDelaySeconds: 60
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+
+replicaCount: 1
+
+ingress:
+  enabled: false  # Typically disabled in dev
+

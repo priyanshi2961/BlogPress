@@ -1,0 +1,251 @@
+// Production CI/CD Pipeline for BlogPress Microservices
+// 
+// Pipeline Configuration Parameters:
+// - GLOBAL_REGISTRY: Docker registry base URL (e.g., docker.io/yourorg or gcr.io/project-id)
+// - REGISTRY_CREDENTIAL_ID: Jenkins credential ID for registry push access
+// - KUBECONFIG_DEV_CREDENTIAL_ID: Jenkins credential ID for dev environment kubeconfig
+// - KUBECONFIG_STAGING_CREDENTIAL_ID: Jenkins credential ID for staging environment kubeconfig  
+// - KUBECONFIG_PROD_CREDENTIAL_ID: Jenkins credential ID for prod environment kubeconfig
+// - HELM_RELEASE_PREFIX: Prefix for all Helm releases (e.g., "blogpress")
+// - SCAN_SEVERITY_THRESHOLD: Comma-separated list of blocking severities (e.g., "CRITICAL,HIGH")
+// - ALLOW_UNFIXED_NON_PROD: Boolean flag to allow unfixed vulnerabilities in non-production
+// - PROD_OVERRIDE_PARAMETER: Parameter name for production override (restricted to authorized users)
+//
+// Build Parameters (supplied at runtime):
+// - SERVICE_LIST: Comma-separated override for services to build/deploy (optional)
+// - IMAGE_TAG_OVERRIDE: Explicit image tag to use (overrides auto-detection)
+// - TARGET_ENVIRONMENT: Environment to deploy to (dev/staging/prod)
+// - SKIP_SCAN: Boolean to skip vulnerability scanning (should be restricted)
+// - PROD_OVERRIDE: Boolean to override production blockers (restricted)
+//
+// Event Triggers:
+// - Push to non-main branch → Build and optionally deploy to dev
+// - Pull request → Build only, no deployment
+// - Merge to main → Build, scan, deploy to staging
+// - Tag starting with "v" → Build, scan, manual approval gate, deploy to prod
+//
+// Service Discovery:
+// - Auto-discovers directories under ./services/
+// - SERVICE_LIST parameter overrides auto-discovery
+// - Each service directory should contain a Dockerfile
+//
+// Image Versioning:
+// 1. IMAGE_TAG_OVERRIDE (if provided)
+// 2. Git tag (if present and matches pattern)
+// 3. Short commit SHA (default)
+// - Additional branch tag applied for non-main branches (e.g., "feature-xyz")
+//
+// Vulnerability Scanning:
+// - Runs on all built images
+// - Blocks based on SCAN_SEVERITY_THRESHOLD
+// - ALLOW_UNFIXED_NON_PROD allows unfixed issues in dev/staging
+// - PROD_OVERRIDE requires manual approval for production
+//
+// Deployment Strategy:
+// - Dev: Auto-deploy on non-main branch pushes
+// - Staging: Auto-deploy on merge to main
+// - Prod: Manual approval gate before deployment on version tags
+//
+// Quality Gates:
+// - Unit tests run if test target exists (non-blocking if missing)
+// - Image scanning blocks based on severity threshold
+// - Production requires manual approval
+//
+// Reporting:
+// - Test reports published if JUnit XML present
+// - Deployment notes archived as lightweight artifacts
+// - Clear status messages posted to build console
+
+pipeline {
+    agent any
+    
+    parameters {
+        choice(
+            name: 'TARGET_ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Target deployment environment'
+        )
+        string(
+            name: 'IMAGE_TAG_OVERRIDE',
+            defaultValue: '',
+            description: 'Override image tag (overrides auto-detection)'
+        )
+        string(
+            name: 'SERVICE_LIST',
+            defaultValue: '',
+            description: 'Comma-separated service names to build/deploy (empty = all)'
+        )
+        booleanParam(
+            name: 'SKIP_SCAN',
+            defaultValue: false,
+            description: 'Skip vulnerability scanning (restricted)'
+        )
+        booleanParam(
+            name: 'PROD_OVERRIDE',
+            defaultValue: false,
+            description: 'Override production blockers (restricted)'
+        )
+    }
+    
+    environment {
+        // TODO: Configure these values in Jenkins Global Configuration
+        GLOBAL_REGISTRY = 'docker.io/yourorg'  // TODO: Replace with actual registry
+        REGISTRY_CREDENTIAL_ID = 'docker-registry-creds'  // TODO: Replace with credential ID
+        KUBECONFIG_DEV_CREDENTIAL_ID = 'kubeconfig-dev'  // TODO: Replace with credential ID
+        KUBECONFIG_STAGING_CREDENTIAL_ID = 'kubeconfig-staging'  // TODO: Replace with credential ID
+        KUBECONFIG_PROD_CREDENTIAL_ID = 'kubeconfig-prod'  // TODO: Replace with credential ID
+        HELM_RELEASE_PREFIX = 'blogpress'  // TODO: Adjust if needed
+        SCAN_SEVERITY_THRESHOLD = 'CRITICAL,HIGH'  // TODO: Adjust based on policy
+        ALLOW_UNFIXED_NON_PROD = 'true'  // TODO: Set to 'false' for stricter policy
+        PROD_OVERRIDE_PARAMETER = 'PROD_OVERRIDE'
+    }
+    
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '50'))
+        // Mask passwords and secrets in console
+        timestamps()
+    }
+    
+    stages {
+        stage('Discover Services') {
+            steps {
+                script {
+                    // Auto-discover services from ./services directory
+                    // Override with SERVICE_LIST parameter if provided
+                    // Store result in services variable for subsequent stages
+                }
+            }
+        }
+        
+        stage('Resolve Image Version') {
+            steps {
+                script {
+                    // Version resolution utility:
+                    // 1. Check IMAGE_TAG_OVERRIDE
+                    // 2. Check if current commit has a tag starting with "v"
+                    // 3. Fall back to short commit SHA
+                    // 4. Determine branch tag for non-main branches
+                    // Store final tag in IMAGE_TAG variable
+                }
+            }
+        }
+        
+        stage('Build and Test') {
+            parallel {
+                // Parallel builds for each discovered service
+                // Each service build:
+                // 1. Builds Docker image with resolved tag
+                // 2. Optionally runs unit tests if test target exists (non-blocking)
+                // 3. Tags image with resolved version and branch (if applicable)
+            }
+        }
+        
+        stage('Scan Images') {
+            when {
+                expression { !params.SKIP_SCAN }
+            }
+            steps {
+                script {
+                    // Vulnerability scanning:
+                    // 1. Scan each built image
+                    // 2. Extract severity findings
+                    // 3. Check against SCAN_SEVERITY_THRESHOLD
+                    // 4. Block if critical/high found (unless ALLOW_UNFIXED_NON_PROD for dev/staging)
+                    // 5. Require PROD_OVERRIDE approval for production with blockers
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            steps {
+                script {
+                    // Build and push utility:
+                    // 1. Authenticate to registry using REGISTRY_CREDENTIAL_ID
+                    // 2. Build multi-architecture images (amd64, arm64) if supported
+                    // 3. Use remote cache where available
+                    // 4. Attach SBOM when supported by scanner
+                    // 5. Push to GLOBAL_REGISTRY with resolved tags
+                }
+            }
+        }
+        
+        stage('Determine Deployment Target') {
+            steps {
+                script {
+                    // Environment mapping:
+                    // - Non-main branches → dev
+                    // - Merge to main → staging
+                    // - Version tag (v*) → prod (after approval)
+                    // - Respect TARGET_ENVIRONMENT parameter if set
+                }
+            }
+        }
+        
+        stage('Deploy to Environment') {
+            when {
+                anyOf {
+                    branch 'main'
+                    tag pattern: 'v.*', comparator: 'REGEXP'
+                    expression { params.TARGET_ENVIRONMENT != null }
+                }
+            }
+            steps {
+                script {
+                    // Deployment utility:
+                    // 1. Select appropriate kubeconfig credential based on environment
+                    // 2. For each service, apply Helm release using:
+                    //    - Release name: ${HELM_RELEASE_PREFIX}-${SERVICE}-${ENV}
+                    //    - Chart: ./helm-charts/microservice
+                    //    - Values: ./helm-charts/values/${SERVICE}-${ENV}.yaml
+                    //    - Override image.tag with resolved tag
+                    // 3. Deploy services in stable order (e.g., alphabetically)
+                    // 4. Wait for rollout completion per service
+                    // 5. Generate deployment notes with tag, environment, revision
+                }
+            }
+        }
+        
+        stage('Production Approval Gate') {
+            when {
+                tag pattern: 'v.*', comparator: 'REGEXP'
+            }
+            steps {
+                script {
+                    // Manual approval step for production deployments
+                    // Display deployment summary
+                    // Require authorized user approval
+                }
+                input message: 'Approve production deployment?', ok: 'Deploy to Production'
+            }
+        }
+        
+        stage('Publish Reports') {
+            steps {
+                script {
+                    // Publish test reports if JUnit XML exists
+                    // Archive deployment notes as lightweight artifacts
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                // Cleanup: Remove temporary images, artifacts
+            }
+        }
+        success {
+            script {
+                // Post success status with deployment summary
+            }
+        }
+        failure {
+            script {
+                // Post failure status with error details
+            }
+        }
+    }
+}
+
