@@ -1,0 +1,37 @@
+﻿pipeline {
+  agent any
+  options { ansiColor("xterm"); timestamps() }
+  environment { KUBECONFIG = "C:\\\\kube\\\\config" }
+  stages {
+    stage("Checkout") { steps { checkout scm } }
+    stage("Show committed changes") {
+      steps { powershell 'git --no-pager log -1 --pretty=format:"%h %an %ad %s" --date=iso' }
+    }
+    stage("Build image inside Minikube") {
+      steps {
+        powershell '''
+          $envCmd = minikube -p minikube docker-env --shell powershell
+          Invoke-Expression $envCmd
+          $short = $env:GIT_COMMIT.Substring(0,7)
+          $tag = "blogpress:dev-$short"
+          docker build -t $tag .
+          New-Item -ItemType Directory -Force -Path render | Out-Null
+          (Get-Content -Raw k8s/deployment.yaml).Replace("REPLACE_IMAGE", $tag) | Set-Content -NoNewline render/deployment.yaml
+          Copy-Item k8s\\service.yaml render\\service.yaml -Force
+        '''
+      }
+    }
+    stage("Deploy to Minikube") {
+      steps {
+        powershell '''
+          kubectl --kubeconfig="$env:KUBECONFIG" config use-context minikube
+          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render\\deployment.yaml
+          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render\\service.yaml
+          kubectl --kubeconfig="$env:KUBECONFIG" rollout status deploy/blogpress --timeout=120s
+          kubectl --kubeconfig="$env:KUBECONFIG" get pods -l app=blogpress -o wide
+          kubectl --kubeconfig="$env:KUBECONFIG" get svc blogpress -o wide
+        '''
+      }
+    }
+  }
+}

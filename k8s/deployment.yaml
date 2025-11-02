@@ -1,0 +1,21 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blogpress
+  labels:
+    app: blogpress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blogpress
+  template:
+    metadata:
+      labels:
+        app: blogpress
+    spec:
+      containers:
+        - name: blogpress
+          image: REPLACE_IMAGE
+          ports:
+            - containerPort: 3000
