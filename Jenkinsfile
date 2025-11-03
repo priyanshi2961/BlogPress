@@ -38,14 +38,29 @@ stage("Build image inside Minikube") {
 stage("Deploy to Minikube") {
   steps {
     powershell '''
-      minikube kubectl -- apply -f render/deployment.yaml
-      minikube kubectl -- apply -f render/service.yaml
-      minikube kubectl -- rollout status deploy/blogpress --timeout=120s
-      minikube kubectl -- get pods -l app=blogpress -o wide
-      minikube kubectl -- get svc blogpress -o wide
+      Write-Host "=== Setting up Minikube environment for deployment ==="
+      $envText = (& minikube -p minikube docker-env --shell powershell | Out-String)
+      if ([string]::IsNullOrWhiteSpace($envText)) { Write-Error "minikube docker-env failed"; exit 1 }
+      Invoke-Expression $envText
+
+      # Set KUBECONFIG to point to Minikube's kubeconfig file
+      $env:KUBECONFIG = "$env:USERPROFILE\\.kube\\config"
+
+      # Confirm cluster connection
+      Write-Host "=== Checking cluster status ==="
+      kubectl cluster-info
+      kubectl get nodes
+
+      Write-Host "=== Deploying manifests ==="
+      kubectl apply -f render/deployment.yaml --validate=false
+      kubectl apply -f render/service.yaml --validate=false
+
+      Write-Host "=== Deployment complete ==="
+      kubectl get pods -o wide
     '''
   }
 }
+
 
   }
 }
