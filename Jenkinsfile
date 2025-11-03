@@ -1,1 +1,53 @@
-pipeline {  agent any  options { timestamps() }  environment { KUBECONFIG = "C:\\kube\\config" }  stages {    stage("Checkout") { steps { checkout scm } }    stage("Show committed changes") {      steps { powershell 'git --no-pager log -1 --pretty=format:"%h %an %ad %s" --date=iso' }    }    stage("Build image inside Minikube") {      steps {        powershell '''          minikube version          minikube status          # Capture docker-env as text and execute it          $envText = (& minikube -p minikube docker-env --shell powershell | Out-String)          if ([string]::IsNullOrWhiteSpace($envText)) { Write-Error "minikube docker-env returned empty output"; exit 1 }          Invoke-Expression $envText          docker version          # Tag from commit          $short = if ($env:GIT_COMMIT) { $env:GIT_COMMIT.Substring(0,7) } else { (git rev-parse --short=7 HEAD) }          $tag = "blogpress:dev-$short"          # Build image in Minikube's Docker          docker build -t $tag .          # Render manifests          New-Item -ItemType Directory -Force -Path render | Out-Null          (Get-Content -Raw k8s/deployment.yaml).Replace("REPLACE_IMAGE", $tag) | Set-Content -NoNewline render/deployment.yaml          Copy-Item k8s/service.yaml render/service.yaml -Force        '''      }    }    stage("Deploy to Minikube") {      steps {        powershell '''          kubectl --kubeconfig="$env:KUBECONFIG" config use-context minikube          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render/deployment.yaml          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render\service.yaml          kubectl --kubeconfig="$env:KUBECONFIG" rollout status deploy/blogpress --timeout=120s          kubectl --kubeconfig="$env:KUBECONFIG" get pods -l app=blogpress -o wide          kubectl --kubeconfig="$env:KUBECONFIG" get svc blogpress -o wide        '''      }    }  }}
+pipeline {
+  agent any
+  options { timestamps() }
+  environment { KUBECONFIG = "C:\\kube\\config" }
+
+  stages {
+    stage("Checkout") { steps { checkout scm } }
+
+    stage("Show committed changes") {
+      steps { powershell 'git --no-pager log -1 --pretty=format:"%h %an %ad %s" --date=iso' }
+    }
+
+    stage("Build image inside Minikube") {
+      steps {
+        powershell '''
+          minikube version
+          minikube status
+
+          # Load minikube Docker environment
+          $envText = (& minikube -p minikube docker-env --shell powershell | Out-String)
+          if ([string]::IsNullOrWhiteSpace($envText)) { Write-Error "minikube docker-env returned empty output"; exit 1 }
+          Invoke-Expression $envText
+          docker version
+
+          # Tag from commit
+          $short = if ($env:GIT_COMMIT) { $env:GIT_COMMIT.Substring(0,7) } else { (git rev-parse --short=7 HEAD) }
+          $tag = "blogpress:dev-$short"
+
+          # Build image
+          docker build -t $tag .
+
+          # Render manifests with the image tag
+          New-Item -ItemType Directory -Force -Path render | Out-Null
+          (Get-Content -Raw k8s/deployment.yaml).Replace("REPLACE_IMAGE", $tag) | Set-Content -NoNewline render/deployment.yaml
+          Copy-Item k8s/service.yaml render/service.yaml -Force
+        '''
+      }
+    }
+
+    stage("Deploy to Minikube") {
+      steps {
+        powershell '''
+          kubectl --kubeconfig="$env:KUBECONFIG" config use-context minikube
+          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render/deployment.yaml
+          kubectl --kubeconfig="$env:KUBECONFIG" apply -f render/service.yaml
+          kubectl --kubeconfig="$env:KUBECONFIG" rollout status deploy/blogpress --timeout=120s
+          kubectl --kubeconfig="$env:KUBECONFIG" get pods -l app=blogpress -o wide
+          kubectl --kubeconfig="$env:KUBECONFIG" get svc blogpress -o wide
+        '''
+      }
+    }
+  }
+}
