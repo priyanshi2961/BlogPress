@@ -33,33 +33,32 @@ stage("Build image inside Minikube") {
     '''
   }
 }
-
 stage("Deploy to Minikube") {
   steps {
     powershell '''
-      Write-Host "=== Attach to Minikube Docker env ==="
+      Write-Host "=== Setting Docker to Minikube ==="
       $envText = (& minikube -p minikube docker-env --shell powershell | Out-String)
       if ([string]::IsNullOrWhiteSpace($envText)) { Write-Error "minikube docker-env failed"; exit 1 }
       Invoke-Expression $envText
 
-      # Remove any Jenkins/K8s plugin leftovers that can confuse clients
+      # Remove any old K8s environment overrides
       Remove-Item Env:KUBERNETES_MASTER       -ErrorAction SilentlyContinue
       Remove-Item Env:KUBERNETES_SERVICE_HOST -ErrorAction SilentlyContinue
       Remove-Item Env:KUBERNETES_SERVICE_PORT -ErrorAction SilentlyContinue
 
-      Write-Host "=== Verify cluster via minikube kubectl ==="
-      minikube -p minikube kubectl -- version --short
+      Write-Host "=== Verifying cluster connection ==="
       minikube -p minikube status
 
-      Write-Host "=== Deploy manifests (using minikube kubectl) ==="
+      Write-Host "=== Deploying manifests ==="
       minikube -p minikube kubectl -- apply -f render/deployment.yaml --validate=false
-      minikube -p minikube kubectl -- apply -f render/service.yaml    --validate=false
+      minikube -p minikube kubectl -- apply -f render/service.yaml --validate=false
 
-      Write-Host "=== Objects after deploy ==="
-      minikube -p minikube kubectl -- get nodes -o wide
-      minikube -p minikube kubectl -- get deploy,svc,pods -o wide
+      Write-Host "=== Current objects ==="
+      minikube -p minikube kubectl -- get pods -o wide
+      minikube -p minikube kubectl -- get svc -o wide
     '''
   }
-  }
+}
+
   }
 }
