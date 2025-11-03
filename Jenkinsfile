@@ -34,7 +34,6 @@ stage("Build image inside Minikube") {
   }
 }
 
-
 stage("Deploy to Minikube") {
   steps {
     powershell '''
@@ -43,36 +42,24 @@ stage("Deploy to Minikube") {
       if ([string]::IsNullOrWhiteSpace($envText)) { Write-Error "minikube docker-env failed"; exit 1 }
       Invoke-Expression $envText
 
-      # Remove any leftover K8s overrides:
+      # Remove any Jenkins/K8s plugin leftovers that can confuse clients
       Remove-Item Env:KUBERNETES_MASTER       -ErrorAction SilentlyContinue
       Remove-Item Env:KUBERNETES_SERVICE_HOST -ErrorAction SilentlyContinue
       Remove-Item Env:KUBERNETES_SERVICE_PORT -ErrorAction SilentlyContinue
 
-      Write-Host "=== Ensure cluster is up ==="
+      Write-Host "=== Verify cluster via minikube kubectl ==="
+      minikube -p minikube kubectl -- version --short
       minikube -p minikube status
 
-      Write-Host "=== Create a fresh kubeconfig for THIS RUN ==="
-      $cfgPath = Join-Path $env:WORKSPACE "kubeconfig"
-      (minikube -p minikube kubectl -- config view --raw) | Out-File -Encoding ascii -NoNewline $cfgPath
-      $env:KUBECONFIG = $cfgPath
+      Write-Host "=== Deploy manifests (using minikube kubectl) ==="
+      minikube -p minikube kubectl -- apply -f render/deployment.yaml --validate=false
+      minikube -p minikube kubectl -- apply -f render/service.yaml    --validate=false
 
-      Write-Host "=== Verify context ==="
-      kubectl config current-context
-      kubectl cluster-info
-
-      Write-Host "=== Apply manifests ==="
-      kubectl apply -f render/deployment.yaml --validate=false
-      kubectl apply -f render/service.yaml    --validate=false
-
-      Write-Host "=== Check objects ==="
-      kubectl get nodes -o wide
-      kubectl get deploy,svc,pods -o wide
+      Write-Host "=== Objects after deploy ==="
+      minikube -p minikube kubectl -- get nodes -o wide
+      minikube -p minikube kubectl -- get deploy,svc,pods -o wide
     '''
   }
-}
-
-
-
-
+  }
   }
 }
