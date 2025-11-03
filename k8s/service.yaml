@@ -3,10 +3,11 @@ kind: Service
 metadata:
   name: blogpress
 spec:
+  type: NodePort
   selector:
     app: blogpress
-  type: NodePort
   ports:
-    - port: 80
+    - name: http
+      port: 3000
       targetPort: 3000
       nodePort: 30080
