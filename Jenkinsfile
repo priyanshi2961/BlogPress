@@ -22,16 +22,22 @@ pipeline {
             }
         }
 
-        stage('Build image inside Minikube') {
+                stage('Build image inside Minikube') {
             steps {
                 powershell '''
                 Write-Host "=== Attach to Minikube Docker environment ==="
-                $envText = & minikube -p minikube docker-env --shell powershell
-                if (-not $envText) { throw "minikube docker-env returned empty output" }
-                Invoke-Expression $envText
+
+                # Get docker-env output properly
+                $envText = & minikube -p minikube docker-env --shell powershell | Out-String
+                if ($envText -match "DOCKER_TLS_VERIFY") {
+                    Write-Host "✅ Minikube Docker environment detected"
+                    Invoke-Expression $envText
+                } else {
+                    throw "❌ Failed to get Minikube Docker environment. Output:`n$envText"
+                }
 
                 Write-Host "=== Verify Docker connection ==="
-                docker info | Select-String "Server Version"
+                docker version
 
                 Write-Host "=== Tag and Build Docker image ==="
                 $short = (git rev-parse --short=7 HEAD)
@@ -44,9 +50,12 @@ pipeline {
                 (Get-Content -Raw k8s/deployment.yaml).Replace("REPLACE_IMAGE", $tag) | 
                     Set-Content -NoNewline render/deployment.yaml
                 Copy-Item k8s/service.yaml render/service.yaml -Force
+
+                Write-Host "✅ Docker image built and manifests rendered successfully"
                 '''
             }
         }
+
 
         stage('Deploy to Minikube') {
             steps {
