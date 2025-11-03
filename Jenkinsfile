@@ -23,15 +23,19 @@ pipeline {
         stage('Build image inside Minikube') {
             steps {
                 powershell '''
-                Write-Host "=== Using Minikube’s internal Docker daemon ==="
+                Write-Host "=== Verify Minikube and Docker ==="
                 minikube -p minikube status
+                minikube docker-env
 
-                Write-Host "=== Building Docker image directly inside Minikube ==="
+                Write-Host "=== Tag from commit ==="
                 $short = (git rev-parse --short=7 HEAD)
                 $tag = "blogpress:dev-$short"
 
-                # Build inside minikube docker environment safely
-                & minikube -p minikube ssh "docker build -t $tag -f /hosthome/${env.USERNAME}/src/BlogPress/blog-frontend/Dockerfile /hosthome/${env.USERNAME}/src/BlogPress/blog-frontend" || exit 1
+                Write-Host "=== Building Docker image inside Minikube VM ==="
+                $cmd = "docker build -t $tag -f /hosthome/${env.USERNAME}/src/BlogPress/blog-frontend/Dockerfile /hosthome/${env.USERNAME}/src/BlogPress/blog-frontend"
+                minikube -p minikube ssh $cmd
+
+                if ($LASTEXITCODE -ne 0) { throw 'Docker build failed inside Minikube' }
 
                 Write-Host "=== Rendering Kubernetes manifests ==="
                 New-Item -ItemType Directory -Force -Path render | Out-Null
@@ -39,7 +43,7 @@ pipeline {
                     Set-Content -NoNewline render/deployment.yaml
                 Copy-Item k8s/service.yaml render/service.yaml -Force
 
-                Write-Host "✅ Docker image built inside Minikube successfully"
+                Write-Host "✅ Docker image built and manifests rendered successfully"
                 '''
             }
         }
@@ -64,8 +68,8 @@ pipeline {
     post {
         failure {
             powershell '''
-            Write-Host "❌ Pipeline failed. Fetching Minikube logs..."
-            minikube logs --tail=50
+            Write-Host "❌ Pipeline failed. Fetching last 20 log lines..."
+            minikube logs | Select-Object -Last 20
             '''
         }
         success {
